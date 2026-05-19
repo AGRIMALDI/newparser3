@@ -1,20 +1,493 @@
-Viva OFP Parser v1 online database
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Viva OFP Parser v1 online database</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 
+    <style>  
+        /* Global & Layout Reset */
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding-top: 70px; background: #f5f7fb; color: #333; }
+        .container { max-width: 1050px; margin: 0 auto; background: white; padding: 25px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 40px; }
+        .flex-container { display: flex; gap: 20px; margin-top: 20px; }
+        .input-panel { flex: 1; }
+        .output-panel { flex: 1; }
+        textarea { width: 100%; height: 200px; font-family: monospace; padding: 12px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; resize: vertical; background: #fafafa; }
+        
+        /* Sticky Top Navigation Bar */
+        .navbar { position: fixed; top: 0; left: 0; width: 100%; height: 60px; background: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.06); display: flex; align-items: center; justify-content: space-between; padding: 0 25px; box-sizing: border-box; z-index: 900; }
+        .navbar-brand { font-size: 18px; font-weight: bold; color: #333; }
+        .navbar-brand span { color: #0076ff; }
+        
+        /* Interactive Hamburger Menu Icon */
+        .hamburger-btn { background: none; border: none; cursor: pointer; display: flex; flex-direction: column; justify-content: space-between; width: 24px; height: 18px; padding: 0; z-index: 850; position: relative; }
+        .hamburger-btn span { display: block; width: 100%; height: 2px; background-color: #333; border-radius: 2px; transition: all 0.3s ease; }
 
+        /* Slide-out Menu Drawer */
+        .menu-drawer { position: fixed; top: 0; right: -280px; width: 280px; height: 100%; background: #ffffff; box-shadow: -4px 0 15px rgba(0,0,0,0.1); z-index: 940; transition: right 0.3s cubic-bezier(0.4, 0.0, 0.2, 1); padding: 20px; box-sizing: border-box; }
+        .menu-drawer.open { right: 0; }
+        
+        /* Drawer Header Close Button alignment */
+        .drawer-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 12px; }
+        .drawer-header h4 { margin: 0; color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+        
+        .back-menu-btn { background: none; border: none; cursor: pointer; padding: 5px; font-size: 18px; color: #333; display: flex; align-items: center; justify-content: center; border-radius: 50%; width: 32px; height: 32px; transition: background 0.2s; }
+        .back-menu-btn:hover { background: #f0f2f5; color: #0076ff; }
+        
+        /* Buttons */
+        .btn { color: white; border: none; padding: 12px 24px; font-size: 15px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-right: 5px; text-align: center; }
+        .btn-primary { background: #0076ff; }
+        .btn-primary:hover { background: #0056b3; }
+        .btn-action { padding: 6px 12px; font-size: 13px; font-weight: normal; border-radius: 4px; display: inline-block; }
+        .btn-view { background: #28a745; color: white; }
+        .btn-view:hover { background: #218838; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-danger:hover { background: #bd2130; }
+        .btn-block { display: block; width: 100%; box-sizing: border-box; }
+        
+        /* Status Elements */
+        .status { margin-top: 15px; font-weight: bold; color: #28a745; display: none; }
+        .error-status { margin-top: 15px; font-weight: bold; color: #dc3545; display: none; }
+        pre { background: #272822; color: #f8f8f2; padding: 15px; border-radius: 4px; overflow-x: auto; max-height: 400px; font-family: monospace; font-size: 12px; margin: 0; }
+        h2 { margin-top: 30px; border-bottom: 2px solid #eee; padding-bottom: 8px; }
+        
+        /* Log Table Styles */
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; background: white; border-radius: 6px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px; }
+        th { background-color: #f1f4f9; color: #555; font-weight: 600; }
+        tr:hover { background-color: #f8faff; }
+        .no-data { text-align: center; color: #888; padding: 30px; font-style: italic; }
 
-➜
-DATA MANAGEMENT
-Delete All Flights
-Paste your Viva OFP text. Data is shared across devices and safely cached while offline.
-Extract & Sync Flight
-// Current extracted object preview...
-Shared Flights Log History
-Flight
-Date (UTC)
-Route
-Aircraft
-Block Fuel
-ZFW
-Crew (CPT / FO)
-Actions
-Connecting to cloud stream database...
+        /* Modal Panel Styles */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-content { background: white; width: 90%; max-width: 650px; border-radius: 8px; padding: 25px; max-height: 85vh; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.15); position: relative; animation: fadeIn 0.2s ease-out; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #f1f4f9; padding-bottom: 10px; margin-bottom: 15px; }
+        .modal-header h3 { margin: 0; color: #0076ff; font-size: 20px; }
+        .close-modal { font-size: 24px; color: #aaa; cursor: pointer; background: none; border: none; }
+        .close-modal:hover { color: #333; }
+        
+        .details-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 20px; }
+        .detail-card { background: #f8faff; padding: 12px; border-radius: 6px; border-left: 4px solid #0076ff; }
+        .detail-card h4 { margin: 0 0 5px 0; font-size: 12px; text-transform: uppercase; color: #666; letter-spacing: 0.5px; }
+        .detail-card p { margin: 0; font-size: 15px; font-weight: bold; color: #222; }
+        .modal-section-title { font-size: 14px; text-transform: uppercase; color: #0076ff; font-weight: bold; margin-top: 15px; margin-bottom: 8px; border-bottom: 1px dashed #ddd; padding-bottom: 3px; }
+        
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="navbar-brand">Viva OFP Parser <span>v1 online database</span></div>
+    <button class="hamburger-btn" onclick="toggleMenu(event)" id="menuButton">
+        <span></span>
+        <span></span>
+        <span></span>
+    </button>
+</nav>
+
+<div class="menu-drawer" id="menuDrawer">
+    <div class="drawer-header">
+        <button class="back-menu-btn" onclick="toggleMenu(event)" title="Close Menu">&#10140;</button>
+        <h4>Data Management</h4>
+    </div>
+    <button class="btn btn-danger btn-block" onclick="deleteAllFlightHistory()">Delete All Flights</button>
+</div>
+
+<div class="container">
+    <p>Paste your Viva OFP text. Data is shared across devices and safely cached while offline.</p>
+    
+    <div class="flex-container">
+        <div class="input-panel">
+            <textarea id="rawText" placeholder="Paste OFP Page 1 text here..."></textarea>
+            <div style="margin-top: 10px;">
+                <button class="btn btn-primary" onclick="parseFlightPlanText()">Extract & Sync Flight</button>
+            </div>
+            <div class="status" id="statusMessage">Extraction complete & synced!</div>
+            <div class="error-status" id="errorMessage">Error parsing text.</div>
+        </div>
+
+        <div class="output-panel">
+            <pre><code id="jsonObject">// Current extracted object preview...</code></pre>
+        </div>
+    </div>
+    
+    <h2>Shared Flights Log History</h2>
+    <div style="max-height: 400px; overflow-y: auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Flight</th>
+                    <th>Date (UTC)</th>
+                    <th>Route</th>
+                    <th>Aircraft</th>
+                    <th>Block Fuel</th>
+                    <th>ZFW</th>
+                    <th>Crew (CPT / FO)</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="logTableBody">
+                <tr><td colspan="8" class="no-data">Connecting to cloud stream database...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="modal-overlay" id="flightModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="modalFlightTitle">Flight Details</h3>
+            <button class="close-modal" onclick="closeModal()">&times;</button>
+        </div>
+        <div id="modalBody"></div>
+    </div>
+</div>
+
+<script>
+// --- 1. FIREBASE CONFIGURATION CONFIG HOOK ---
+const firebaseConfig = {
+    apiKey: "AIzaSyC0X2lBRfhaVDKQZumQIm0fYdzM4lHPYVA",
+    authDomain: "flight-plan-manager-cfbc1.firebaseapp.com",
+    projectId: "flight-plan-manager-cfbc1",
+    storageBucket: "flight-plan-manager-cfbc1.firebasestorage.app",
+    messagingSenderId: "477393302469",
+    appId: "1:477393302469:web:505ff9b999ce72c960d1ac",
+    measurementId: "G-1KTBJXD771"
+  };
+
+// Initialize Firebase SDK Engine Instance
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+// --- 2. ACTIVATE PERMANENT OFFLINE STORAGE PERSISTENCE ---
+db.enablePersistence({ synchronizeTabs: true })
+    .then(() => console.log("Offline persistence activated successfully."))
+    .catch((err) => console.error("Persistence offline module failed to load:", err.code));
+
+// Global local cache pointer array to drive modal actions efficiently
+let localizedFlightCacheArray = [];
+
+// Initialize data listener loop hook on application load
+window.onload = function() {
+    startRealtimeCloudStreamListener();
+};
+
+function toggleMenu(event) {
+    if (event) { event.stopPropagation(); event.preventDefault(); }
+    document.getElementById('menuDrawer').classList.toggle('open');
+}
+
+window.addEventListener('click', function(e) {
+    const drawer = document.getElementById('menuDrawer');
+    const button = document.getElementById('menuButton');
+    if (drawer.classList.contains('open') && !drawer.contains(e.target) && !button.contains(e.target)) {
+        drawer.classList.remove('open');
+    }
+});
+
+// --- 3. LISTEN TO CLOUD CHANGES IN REAL-TIME ---
+function startRealtimeCloudStreamListener() {
+    // Queries collection ordered by the unique timestamp token ID
+    db.collection("flights").orderBy("id", "desc").onSnapshot((snapshot) => {
+        localizedFlightCacheArray = [];
+        snapshot.forEach((doc) => {
+            localizedFlightCacheArray.push(doc.data());
+        });
+        renderHistoryTable(localizedFlightCacheArray);
+    }, (error) => {
+        console.error("Firestore tracking loop error: ", error);
+    });
+}
+
+function parseFlightPlanText() {
+    const text = document.getElementById('rawText').value;
+    const status = document.getElementById('statusMessage');
+    const errorStatus = document.getElementById('errorMessage');
+    
+    status.style.display = 'none';
+    errorStatus.style.display = 'none';
+
+    if (!text.trim()) {
+        showStatus(errorStatus, "Please paste some text first.");
+        return;
+    }
+
+    try {
+        const cleanText = text.replace(/[\"\']/g, '').replace(/\r\n/g, '\n').replace(/[ \t]+/g, ' ');
+
+        // --- v1 Parsing Engine Core ---
+        const flightMatch = cleanText.match(/VIV(\d{4})\s*\/\d{2}\s*([A-Z]{3})\/([A-Z]{4})\s*TO\s*([A-Z]{3})\/([A-Z]{4})/i);
+        const altMatch = cleanText.match(/ALTN\/([A-Z]{4})\s*([A-Z0-9\-]+)\s*([A-Z\-]+)/i);
+        const timesMatch = cleanText.match(/ETD\s*(\d{4}Z?)\s*ETA\s*(\d{4}Z?)/i);
+        const dateComputed = cleanText.match(/COMPUTED\s+(\d{8})/i);
+        const ciMatch = cleanText.match(/PROFILE:\s*([A-Z0-9]+)/i);
+
+        let routeDistance = null;
+        const mdfDistMatch = cleanText.match(/MDF\s*:\s*\d+\s+DIST\s+(\d{4})/i);
+        const holdDestDistMatch = cleanText.match(/HOLD\s+DEST[\s\S]*?DIST\s+(\d{4})/i);
+        if (mdfDistMatch) routeDistance = parseInt(mdfDistMatch[1], 10);
+        else if (holdDestDistMatch) routeDistance = parseInt(holdDestDistMatch[1], 10);
+
+        const crewCapt = cleanText.match(/CPT\s*:\s*([A-Z]+)/i);
+        const crewDx   = cleanText.match(/DXR\s*:\s*([A-Z]+)/i);
+        const crewFO   = cleanText.match(/FO\s*:\s*([A-Z]+(?:\s+[A-Z]+))/i);
+
+        const parseFuelRow = (labelKeyword) => {
+            const regex = new RegExp(`${labelKeyword}(?:\\s+[A-Z]{4})?\\s+(\\d+)\\s+(\\d+)`, 'i');
+            const match = cleanText.match(regex);
+            if (match) {
+                const val1 = match[1]; const val2 = match[2];
+                const fuelVal = val1.length === 6 ? val1 : (val2.length === 6 ? val2 : null);
+                const timeVal = val1.length === 4 ? val1 : (val2.length === 4 ? val2 : null);
+                return {
+                    fuel: fuelVal ? parseInt(fuelVal, 10) : null,
+                    time: timeVal ? `${timeVal.slice(0,2)}:${timeVal.slice(2,4)}` : null
+                };
+            }
+            const fallbackRegex = new RegExp(`${labelKeyword}[\\s\\S]*?(\\d{6})[\\s\\S]*?(\\d{4})?`, 'i');
+            const fallbackMatch = cleanText.match(fallbackRegex);
+            if (fallbackMatch) {
+                return {
+                    fuel: parseInt(fallbackMatch[1], 10),
+                    time: fallbackMatch[2] ? `${fallbackMatch[2].slice(0,2)}:${fallbackMatch[2].slice(2,4)}` : null
+                };
+            }
+            return { fuel: null, time: null };
+        };
+
+        const metricsMatch = cleanText.match(/(\d{6})\s+(\d{6})\s+([MP]\d{3})/i);
+        let takeoffWeight = null, landingWeight = null, windComponent = null;
+        if (metricsMatch) {
+            takeoffWeight = parseInt(metricsMatch[1], 10);
+            landingWeight = parseInt(metricsMatch[2], 10);
+            windComponent = metricsMatch[3];
+        }
+
+        const findWeightValue = (keyword) => {
+            const match = cleanText.match(new RegExp(keyword + `[\\s\\S]*?(\\d{6})`, 'i'));
+            return match ? parseInt(match[1], 10) : null;
+        };
+
+        const destBlock = parseFuelRow("DEST");
+        const resvBlock = parseFuelRow("ENRT RESV");
+        const altnBlock = parseFuelRow("ALTN");
+        const holdBlock = parseFuelRow("HOLD ALTN");
+        const reqdBlock = parseFuelRow("RE[OQ]D");
+        const addnBlock = parseFuelRow("ADDN");
+        const holdDestBlock = parseFuelRow("HOLD DEST");
+        const extraBlock = parseFuelRow("EXTRA");
+        const ttlToBlock = parseFuelRow("TTL AT TO");
+        const taxiBlock = parseFuelRow("TAXI");
+        const rampBlock = parseFuelRow("TTL RAMP");
+
+        const flightPlanData = {
+            id: Date.now(), 
+            metadata: {
+                flightNumber: flightMatch ? `VIV${flightMatch[1]}` : "UNKNOWN",
+                dateComputed: dateComputed ? dateComputed[1] : null,
+                etd: timesMatch ? timesMatch[1] : null,
+                eta: timesMatch ? timesMatch[2] : null,
+                aircraft: {
+                    type: altMatch ? altMatch[2] : null,
+                    registration: altMatch ? altMatch[3] : null
+                }
+            },
+            route: {
+                departure: flightMatch ? flightMatch[3] : null,
+                destination: flightMatch ? flightMatch[5] : null,
+                alternate: altMatch ? altMatch[1] : null,
+                distanceNM: routeDistance, 
+                averageWindComponent: windComponent 
+            },
+            crew: {
+                captain: crewCapt ? crewCapt[1].trim().toUpperCase() : null,
+                firstOfficer: crewFO ? crewFO[1].trim().toUpperCase() : null, 
+                dispatcher: crewDx ? crewDx[1].trim().toUpperCase() : null
+            },
+            weights: {
+                zfw: findWeightValue("ZFW"),
+                payload: findWeightValue("PAYLOAD"),
+                initialTakeoffWeight: takeoffWeight, 
+                estimatedLandingWeight: landingWeight 
+            },
+            fuel: {
+                costIndex: ciMatch ? ciMatch[1] : null,
+                trip: destBlock, 
+                contingency: resvBlock,
+                alternate: altnBlock, 
+                finalReserve: holdBlock,
+                minimumRequired: reqdBlock, 
+                additional: addnBlock,
+                holdDestination: holdDestBlock,
+                extra: extraBlock,
+                takeoffTotal: ttlToBlock,
+                taxi: taxiBlock,
+                rampTotal: rampBlock
+            }
+        };
+
+        document.getElementById('jsonObject').textContent = JSON.stringify(flightPlanData, null, 2);
+        
+        // Save to Firestore (fires instantly inside local offline cache if offline)
+        db.collection("flights").doc(flightPlanData.id.toString()).set(flightPlanData)
+            .then(() => showStatus(status, "Extracted & cloud sync initiated successfully!"));
+
+        document.getElementById('rawText').value = ''; 
+
+    } catch (err) {
+        console.error("Parsing failure details:", err);
+        showStatus(errorStatus, `Error: ${err.message}`);
+    }
+}
+
+function renderHistoryTable(historyData) {
+    const tableBody = document.getElementById('logTableBody');
+    
+    if (historyData.length === 0) {
+        tableBody.innerHTML = `<tr><td colspan="8" class="no-data">No records available in database yet. Paste details above.</td></tr>`;
+        return;
+    }
+    
+    tableBody.innerHTML = '';
+    historyData.forEach(flight => {
+        let formattedDate = "N/A";
+        if (flight.metadata.dateComputed && flight.metadata.dateComputed.length === 8) {
+            const m = flight.metadata.dateComputed.slice(0,2);
+            const d = flight.metadata.dateComputed.slice(2,4);
+            formattedDate = `${d}/${m} @ ${flight.metadata.etd || ''}`;
+        }
+
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td><strong>${flight.metadata.flightNumber}</strong></td>
+            <td>${formattedDate}</td>
+            <td><code>${flight.route.departure}</code> ➔ <code>${flight.route.destination}</code></td>
+            <td>${flight.metadata.aircraft.type || ''} (${flight.metadata.aircraft.registration || ''})</td>
+            <td>${flight.fuel.rampTotal.fuel ? flight.fuel.rampTotal.fuel + ' kg' : 'N/A'}</td>
+            <td>${flight.weights.zfw ? flight.weights.zfw + ' kg' : 'N/A'}</td>
+            <td>${flight.crew.captain || 'N/A'} / ${flight.crew.firstOfficer || 'N/A'}</td>
+            <td>
+                <button class="btn btn-action btn-view" onclick="openFlightModal(${flight.id})">Open</button>
+                <button class="btn btn-action btn-danger" onclick="deleteFlightRecord(${flight.id})">Delete</button>
+            </td>
+        `;
+        tableBody.appendChild(row);
+    });
+}
+
+function openFlightModal(id) {
+    const flight = localizedFlightCacheArray.find(f => f.id === id);
+    if (!flight) return;
+
+    document.getElementById('modalFlightTitle').textContent = `Flight Sheet: ${flight.metadata.flightNumber}`;
+    
+    const fmtKg = (val) => val ? `${val.toLocaleString()} kg` : 'N/A';
+    const fmtRow = (label, dataBlock) => `
+        <tr>
+            <td><strong>${label}</strong></td>
+            <td>${fmtKg(dataBlock.fuel)}</td>
+            <td>${dataBlock.time || '--:--'}</td>
+        </tr>
+    `;
+
+    const htmlContent = `
+        <div class="modal-section-title">General Info</div>
+        <div class="details-grid">
+            <div class="detail-card"><h4>Aircraft</h4><p>${flight.metadata.aircraft.type || 'N/A'} / ${flight.metadata.aircraft.registration || 'N/A'}</p></div>
+            <div class="detail-card"><h4>Schedule (UTC)</h4><p>ETD: ${flight.metadata.etd || '----'} | ETA: ${flight.metadata.eta || '----'}</p></div>
+        </div>
+
+        <div class="modal-section-title">Route & Crew</div>
+        <div class="details-grid">
+            <div class="detail-card"><h4>Routing</h4><p>${flight.route.departure} ➔ ${flight.route.destination} (ALTN: ${flight.route.alternate || 'NIL'})</p></div>
+            <div class="detail-card"><h4>Enroute Profile</h4><p>Dist: ${flight.route.distanceNM ? flight.route.distanceNM + ' NM' : 'N/A'} | Wind: ${flight.route.averageWindComponent || '000'}</p></div>
+            <div class="detail-card"><h4>Flight Crew</h4><p>CPT: ${flight.crew.captain || 'N/A'}<br>FO: ${flight.crew.firstOfficer || 'N/A'}</p></div>
+            <div class="detail-card"><h4>Dispatcher / CI</h4><p>DXR: ${flight.crew.dispatcher || 'N/A'}<br>Cost Index: ${flight.fuel.costIndex || 'N/A'}</p></div>
+        </div>
+
+        <div class="modal-section-title">Operating Weights</div>
+        <div class="details-grid">
+            <div class="detail-card"><h4>Zero Fuel Weight (ZFW)</h4><p>${fmtKg(flight.weights.zfw)}</p></div>
+            <div class="detail-card"><h4>Traffic Payload</h4><p>${fmtKg(flight.weights.payload)}</p></div>
+            <div class="detail-card"><h4>Initial Takeoff Weight</h4><p>${fmtKg(flight.weights.initialTakeoffWeight)}</p></div>
+            <div class="detail-card"><h4>Est. Landing Weight</h4><p>${fmtKg(flight.weights.estimatedLandingWeight)}</p></div>
+        </div>
+
+        <div class="modal-section-title">Fuel Requirements & Log Breakdown</div>
+        <table style="margin-top:0; border: 1px solid #eee;">
+            <thead><tr><th>Category</th><th>Fuel Weight</th><th>Time</th></tr></thead>
+            <tbody>
+                ${fmtRow("Trip Fuel (DEST)", flight.fuel.trip)}
+                ${fmtRow("Contingency Reserve (ENRT RESV)", flight.fuel.contingency)}
+                ${fmtRow("Alternate Fuel (ALTN)", flight.fuel.alternate)}
+                ${fmtRow("Final Reserve Hold (HOLD ALTN)", flight.fuel.finalReserve)}
+                ${fmtRow("Minimum Required (REOD)", flight.fuel.minimumRequired)}
+                ${fmtRow("Additional Fuel (ADDN)", flight.fuel.additional)}
+                ${fmtRow("Destination Holding (HOLD DEST)", flight.fuel.holdDestination)}
+                ${fmtRow("Extra Reserve (EXTRA)", flight.fuel.extra)}
+                <tr style="background: #f1f4f9; border-top: 2px solid #ddd;">
+                    <td><strong>TOTAL AT TAKEOFF (TTL AT TO)</strong></td>
+                    <td><strong>${fmtKg(flight.fuel.takeoffTotal.fuel)}</strong></td>
+                    <td><strong>${flight.fuel.takeoffTotal.time || '--:--'}</strong></td>
+                </tr>
+                ${fmtRow("Taxi Burn Fuel", flight.fuel.taxi)}
+                <tr style="background: #e6efff; font-size: 15px;">
+                    <td><strong style="color:#0076ff;">BLOCK RAMP TOTAL (TTL RAMP)</strong></td>
+                    <td><strong style="color:#0076ff;">${fmtKg(flight.fuel.rampTotal.fuel)}</strong></td>
+                    <td><strong style="color:#0076ff;">${flight.fuel.rampTotal.time || '--:--'}</strong></td>
+                </tr>
+            </tbody>
+        </table>
+    `;
+
+    document.getElementById('modalBody').innerHTML = htmlContent;
+    document.getElementById('flightModal').style.display = 'flex';
+}
+
+function closeModal() {
+    document.getElementById('flightModal').style.display = 'none';
+}
+
+window.onclick = function(event) {
+    const modal = document.getElementById('flightModal');
+    if (event.target === modal) closeModal();
+}
+
+// Delete single target item straight from the cloud database
+function deleteFlightRecord(id) {
+    if(confirm("Delete this flight record?")) {
+        db.collection("flights").doc(id.toString()).delete()
+            .then(() => console.log("Document successfully deleted."));
+    }
+}
+
+// Wipes everything using a batch deletion process
+function deleteAllFlightHistory() {
+    const confirmWipe = confirm("CRITICAL PROTECTION:\nAre you sure you want to completely clear ALL flights from the shared online database cloud storage permanently?");
+    
+    if (confirmWipe) {
+        db.collection("flights").get().then((snapshot) => {
+            const batch = db.batch();
+            snapshot.forEach((doc) => {
+                batch.delete(doc.ref);
+            });
+            return batch.commit();
+        }).then(() => {
+            toggleMenu();
+            alert("The online cloud database logs have been successfully wiped clean.");
+        }).catch(err => console.error("Wipe action encountered error: ", err));
+    }
+}
+
+function showStatus(element, text) {
+    element.textContent = text;
+    element.style.display = 'block';
+}
+</script>
+
+</body>
+</html>
